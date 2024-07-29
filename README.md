@@ -1,8 +1,11 @@
-# DWMB server
+# FCOM server
 
-**Note:** if you're just looking to use DWMB, please see [the repository for DWMBClient](https://github.com/stevenhperry/DWMBClient/).
+*[Featured on FSELite](https://fselite.net/news/vatsim-ivao-message-forwarding-system-fcom-released/)*
+
+**Note:** if you're just looking to use FCOM, please see [the repository for FcomClient](https://github.com/norrisng/FcomClient/).
 
 Also, I would prefer that you don't run an instance of my bot. Just use the one I have!
+
 
 
 ## Overview ##

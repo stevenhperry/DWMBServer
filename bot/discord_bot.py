@@ -11,23 +11,9 @@ import logging
 import os
 import discord_credentials
 import traceback
-#Added UserRegistration class for debugging - SHP 26APR24
-from dbmodels.user_registration import UserRegistration
 
-#description = 'FCOM bot' - SHP 09FEB24
-description = 'DWMB bot' # SHP 09FEB24
-
-#add intents - https://discordpy.readthedocs.io/en/latest/intents.html?highlight=intents  - SHP 09FEB24
-intents = discord.Intents.default()
-intents.messages = True
-intents.members = True  #needed to get message user id? - SHP 10FEB24
-intents.dm_messages = True #needed to get message user id? - SHP 10FEB24
-intents = discord.Intents.all() #fuck it - SHP 10FEB24
-#finish intents
-
-#bot = commands.Bot(command_prefix='!', description=description) - SHP 09FEB24
-commands.Bot(command_prefix='!', description=description, intents=intents)
-
+description = 'FCOM bot'
+bot = commands.Bot(command_prefix='!', description=description)
 
 token = discord_credentials.TOKEN
 
@@ -67,39 +53,6 @@ class BotClient(discord.Client):
             status:     Shows the currently registered callsign (if any)
             remove:		De-registers the user from the internal DB.
         """
-        
-        
-        #log inputs - SHP 10FEB24
-        #logger.info(f'**** Fire - on_message with ******')
-        #logger.info(f'1 - self.user.id = {self.user.id}')
-        #logger.info(f'2 - message.channel = {message.channel}')
-        #logger.info(f'3 - message.content.lower() = {message.content.lower()}')
-        #logger.info(f'4 - message.channel.recipient.id = {message.channel.recipient.id}')
-        #logger.info(f'5 - message.mentions.id = {message.mentions.id}')
-        
-        """
-        print(message)
-        temp_channel = message.channel
-        print("**** Channel Info ***")
-        print(temp_channel)
-        print("&&&& Message Author info &&&&")
-        print(message.author.id)
-        print("message.author = ", message.author)
-        print(message.author.name)
-        print(message.author.discriminator)
-        
-        #log inputs - SHP 10FEB24
-        """
-        
-        
-        #handle user ID and name here -SHP 10FEB24
-        #user_id = message.author.id
-        #user_name = message.author.name
-        
-        
-        
-        
-        
         # Do not reply to self
         if message.author.id == self.user.id:
             return
@@ -111,8 +64,7 @@ class BotClient(discord.Client):
         # register
         elif message.content.lower() == 'register':
 
-            #fcom_api_token = bot_user_commands.register_user(message.channel) #replace w/ message.author SHP
-            fcom_api_token = bot_user_commands.register_user(message.author) #replace w/ message.author SHP
+            fcom_api_token = bot_user_commands.register_user(message.channel)
 
             if fcom_api_token is None:
                 msg = "You're already registered! To reset your registration, type `remove` before typing `register` again."
@@ -120,19 +72,14 @@ class BotClient(discord.Client):
                 msg = f"Here's your Discord code: ```{fcom_api_token}```" + \
                       "\nPlease enter it into the client within the next 5 minutes.\n"
                 logger.info(
-                    #f'Generate token:\t{fcom_api_token}, {message.channel.recipient.id} '
-                    #f'({message.channel.recipient.name} #{message.channel.recipient.discriminator}) ')
-                    f'Generate token:\t{fcom_api_token}, {message.author.id} ' #replace with author.id - SHP 10FEB24
-                    f'({message.author.name} #0) ') #replace with author.name and hardcode discrim to 0 - SHP 10FEB24
-                    
+                    f'Generate token:\t{fcom_api_token}, {message.channel.recipient.id} '
+                    f'({message.channel.recipient.name} #{message.channel.recipient.discriminator}) ')
             await message.channel.send(msg)
 
-        #rewrite status for author.id - SHP 10FEB24
         # status
         elif message.content.lower() == 'status':
 
-            #user = await bot_user_commands.get_user(self, message.channel.recipient)  
-            user = await bot_user_commands.get_user(self.user.id, message.author.id) #go straight to ints - SHP 10FEB24
+            user = await bot_user_commands.get_user(self, message.channel.recipient)
 
             if user is None:
                 msg = "You're currently not registered."
@@ -144,20 +91,7 @@ class BotClient(discord.Client):
                       f"**Discord code:** `{user.token}`"
 
             await message.reply(msg, mention_author=False)
-            
-        #rewrite remove for user id - SHP 10FEB24
-        elif message.content.lower() == 'remove':
 
-            if bot_user_commands.remove_user(message.author.id):
-                msg = "Successfully deregistered! You'll no longer receive forwarded messages."
-                logger.info(f'Deregister user:\t{message.author.id} '
-                            f'({message.author.name} #0)')
-            else:
-                msg = "Could not unregister. Are you sure you're registered?"
-
-            await message.channel.send(msg)
-        
-        """
         # remove
         elif message.content.lower() == 'remove':
 
@@ -169,7 +103,6 @@ class BotClient(discord.Client):
                 msg = "Could not unregister. Are you sure you're registered?"
 
             await message.channel.send(msg)
-        """
 
     # Reference: https://github.com/Rapptz/discord.py/blob/master/examples/background_task.py
     @tasks.loop(seconds=3)
@@ -178,82 +111,25 @@ class BotClient(discord.Client):
         Background task that retrieves submitted PMs from the DB and forwards them to the registered Discord user.
         """
         # while not bot.is_closed():
-        
-        # !!! SHP 18APR24 Debug Code
-        logger.info("     DEBUG: firing forward_messages")
-        i = 0
-                
         messages = db_manager.get_messages()
-        
-        
 
         # Iterate through queued messages (if any), and forward them via Discord DM
         if messages is not None:
-        
-            # !!! SHP 25APR24 Debug Code
-            logger.info("     DEBUG: messages is not None is true")
-        
             for msg in messages:
 
-                # !!! SHP 25APR24 Debug Code
-                i=i+1
-                logger.info(f'     DEBUG: message number i = {i}')
-                logger.info(f'       DEBUG: msg.token={msg.token}')
-
                 dm_user = await db_manager.get_user_record(msg.token, self)
-                
-                #!!! SHP 25APR24 Debug Code
-                if isinstance(dm_user, UserRegistration):
-                        # !!! SHP 25APR24 Debug Code
-                        logger.info("     DEBUG: dm_user is class discord.user")
-                else:
-                        # !!! SHP 25APR24 Debug Code
-                        logger.info("     DEBUG: dm_user is NOT class discord.user")
-                        
-                    
-                
+
                 if dm_user is not None:
-                
-                    # !!! SHP 25APR24 Debug Code
-                    logger.info("        DEBUG: messages dm_user is not None is true")
-            
+
                     # if it's a frequency message (i.e. @xxyyy), parse it into a user-friendly format
                     if msg.receiver.startswith('@'):
-                        
-                        # !!! SHP 25APR24 Debug Code
-                        logger.info("           DEBUG: treating as frequency message")
-                        
                         freq = msg.receiver.replace('@', '1')[:3] + '.' + msg.receiver[3:]
                         dm_contents = f'**{msg.sender}** ({freq} MHz):\n{msg.message}'
 
                     else:
-                        
-                        # !!! SHP 25APR24 Debug Code
-                        logger.info("          DEBUG: treating as private message")
-                    
                         dm_contents = f'**{msg.sender}**:\n{msg.message}'
 
-                    # SHP 19APR24 - appears this attribute is no longer available.  Replace with dm_channel
-                    #ref - https://discordpy.readthedocs.io/en/stable/api.html?highlight=channel#discord.User
-                    #dm_channel = dm_user.channel_object    # did not work! -SHP 19APR24
-                    #dm_channel = dm_user.dm_channel        # did not work! -SHP 19APR24
-                    #dm_channel = dm_user.id    # did not work! -SHP 19APR24
-                    
-                    
-                    # Continued trouble here with dm_user
-                    # dm_user.channel_object = null in log file
-                    # https://discordpy.readthedocs.io/en/stable/api.html#id1
-                    
-                    
-                    # !!! SHP 25APR24 Debug Code
-                    logger.info("     DEBUG: now setting dm_channel")
-                    logger.info(f'       DEBUG: dm_user.channel_object = {dm_user.channel_object}')
-                    logger.info(f'       DEBUG: dm_user.discord_id = {dm_user.discord_id}')
-                    logger.info(f'       DEBUG: dm_user.discord_name = {dm_user.discord_name}')
-                    logger.debug(f'dm_user data dump: {dm_user}')
-                        
                     dm_channel = dm_user.channel_object
-                    
                     try:
                         await dm_channel.send(dm_contents)
                     except discordpy_error.Forbidden:
@@ -340,10 +216,6 @@ def start_bot():
 
         else:
             break
-
-
-#debug tools - SHP 25APR24
-
 
 
 start_bot()
