@@ -37,6 +37,17 @@ try:
 except FileNotFoundError:
     curr_version = '0.0.0'
 
+#Create 2nd test without GET method. - SHP 07APR2024
+@app.route('/api/v1/simpletest')
+def simpletest():
+    """
+    Simple test endpoint for checking if the API is working.
+
+    :return: "Success"
+    """
+    return "Success"
+
+
 
 @app.route('/api/v1/test', methods=['GET'])
 def test():
@@ -78,7 +89,19 @@ def register_user():
             expiry_time = requested_user.last_updated + timedelta(1.5)
             expiry_time_string = f"{str(expiry_time)[:16]}"
 
-            curr_time = round(datetime.utcnow().timestamp())
+            #
+            #SHP 18APR24
+            #change in how timezones are handled, so needed to change utcnow() to now(), which is equivalent
+            #
+            #curr_time = round(datetime.utcnow().timestamp())
+            #
+            curr_time = round(datetime.now().timestamp())
+            #
+            # SHP 18APR24
+            #
+            
+            
+            
             message = f"Callsign **{callsign}** " +\
                       f"(expires **{expiry_time_string}** UTC)\n" +\
                       "To deregister, type `remove` here, or click on **Stop** inside the client."
