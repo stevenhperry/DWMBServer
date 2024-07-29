@@ -6,43 +6,16 @@ from dbmodels.fsd_message import FsdMessage
 from discord import DMChannel, Client
 from typing import List
 import discord_credentials
-#Added logging and os for logging - SHP 26APR24
-import logging
-from logging.handlers import TimedRotatingFileHandler
-import os
 
 # MariaDB
 DB_URI = 'localhost'
-DB_USERNAME = os.environ['DWMB_DB_USERNAME']
-DB_PASSWORD = os.environ['DWMB_DB_PASSWORD']
-DB_NAME = 'dwmb'
-#Updated database name - SHP 01APR2024
-
-
-#Added logging config - SHP 26APR24
-# Logging config #
-
-if not os.path.exists('logs'):
-    os.mkdir('logs')
-
-formatter = logging.Formatter(fmt='%(asctime)s: %(message)s')
-handler = TimedRotatingFileHandler(f'logs/db_manager.log', when='midnight', backupCount=15)
-handler.setFormatter(formatter)
-
-logger = logging.getLogger(__name__)
-logger.addHandler(handler)
-logger.setLevel(logging.DEBUG)
-
-# End logging config #
-#Added logging config - SHP 26APR24
-
+DB_USERNAME = os.environ['FCOM_DB_USERNAME']
+DB_PASSWORD = os.environ['FCOM_DB_PASSWORD']
+DB_NAME = 'fcom'
 
 
 # Local cache for DMChannel objects.
 # This avoids the need to reach the Discord API every time a DM needs to be sent.
-# Dictionary info and examples: https://www.programiz.com/python-programming/dictionary
-
-
 pm_channels = {}
 
 
@@ -139,10 +112,6 @@ async def get_user_record(param, client: Client = None) -> UserRegistration:
     :param client:  The bot object
     :return:        UserRegistration object if in DB, None otherwise
     """
-    
-    logger.info("     DEBUG: firing get_user_record")
-    logger.info("       DEBUG: length of pm_channels is %i", len(pm_channels))
-    
     if not (isinstance(param, int) or isinstance(param, str)):
         return None
     else:
@@ -302,40 +271,20 @@ def get_messages() -> List[FsdMessage]:
 
     # NOTE: until we've implemented discord_id in FsdMessage, use NULL as a placeholder,
     #       so that the tuple indexes remain constant.
-    #cursor.execute("""SELECT 
-    #                            MAX(id),
-    #                            NULL,
-    #                            messages.token, 
-    #                            time_received, 
-    #                            sender, 
-    #                            receiver, 
-    #                            GROUP_CONCAT(message ORDER BY id SEPARATOR '\n') as message_contents
-    #                        FROM messages
-    #                        -- LEFT JOIN 
-    #                            -- registration on messages.token = registration.token
-    #                        GROUP BY 
-    #                            token, sender
-    #                        ORDER BY insert_time asc;
-    #                    """)
-    
-    #SHP 19APR24
-    #NOTE - added MAX() functions to messages.token, time_received, sender, receiver, to comply with only full group by mode in SQL.
-    #   These values should all be the same, so a random result woudl be acceptable but keeping only_full_group_by for OCD reasons.
-    #   Remarked out the ORDER BY line since insert_time not grouped by either.  Not sure if this has downstream impact.
     cursor.execute("""SELECT 
                                 MAX(id),
                                 NULL,
-                                MAX(messages.token), 
-                                MAX(time_received), 
-                                MAX(sender), 
-                                MAX(receiver), 
+                                messages.token, 
+                                time_received, 
+                                sender, 
+                                receiver, 
                                 GROUP_CONCAT(message ORDER BY id SEPARATOR '\n') as message_contents
                             FROM messages
                             -- LEFT JOIN 
                                 -- registration on messages.token = registration.token
                             GROUP BY 
                                 token, sender
-                            -- ORDER BY insert_time asc;
+                            ORDER BY insert_time asc;
                         """)
 
     messages = cursor.fetchall()
@@ -443,31 +392,9 @@ async def get_channel(client: Client, discord_id: int) -> DMChannel:
     :param discord_id:  Discord snowflake ID of the user
     :return:            DMChannel for the specified Discord user
     """
-    
-    logger.info("INFO: start of the debugging chain in get_channel")
-    logger.debug("DEBUG: running get_channel")
-    
     try:
-        #rewrite for debug purpose, temporary pull from pm_channels and spit out before proceeding - SHP 03MAY24
-        ch = pm_channels[discord_id]
-        logger.debug(f'-DEBUG: returning from pm_channels')
-        logger.debug(f'--DEBUG: discord_id = %i', discord_id)
-        logger.debug(f'--DEBUG: ch = %s', ch)
-        logger.debug(f'---DEBUG: total contents of pm_channels %s',pm_channels)
-        
-        #Added way to capture a "null" response and force to go to KeyError - SHP 03MAY24
-        
-        if ch == 'null':
-            raise KeyError('pm_channel dictionary returned null')
-        
-        #channel = pm_channels[discord_id]
-        channel = ch
-                
-        logger.debug("-DEBUG: returning from pm_channels")
-        
+        channel = pm_channels[discord_id]
     except KeyError:
-    
-        logger.debug("-DEBUG: returning from Except KeyError")
         # (0.10.1 and earlier) Old implementation:
         #   This makes an API call.
         #   get_user_info() would fail silently, returning None instead of an exception.
@@ -480,24 +407,14 @@ async def get_channel(client: Client, discord_id: int) -> DMChannel:
 
         # (0.11.0+) New implementation: this is a cache lookup
         fcom_discord_server = client.get_guild(discord_credentials.FCOM_DISCORD_SERVER_ID)
-        
         user = fcom_discord_server.get_member(discord_id)
-               
         ch = user.dm_channel
-
-
-        #
-        logger.debug(f'--DEBUG fcom_discord_server = %s',fcom_discord_server)
-        logger.debug(f'--DEBUG user = %s',user)
-        logger.debug(f'--DEBUG ch = %s',ch)
 
         if ch is None:
             ch = await user.create_dm()
 
         # Save to internal dictionary
         pm_channels[discord_id] = ch
-        
-                
         channel = ch
 
     return channel
