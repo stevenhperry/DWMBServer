@@ -1,12 +1,12 @@
-# FCOM server
+# DWMB Server
 
-*[Featured on FSELite](https://fselite.net/news/vatsim-ivao-message-forwarding-system-fcom-released/)*
+Update and redeploying FCOM since it is no longer maintained.
 
-**Note:** if you're just looking to use FCOM, please see [the repository for FcomClient](https://github.com/norrisng/FcomClient/).
-
-Also, I would prefer that you don't run an instance of my bot. Just use the one I have!
+**This is for the server.  If you want to use DWMB for your flights, see the DWMB Client**
 
 
+## NOTE ##
+Rest of read me file needs an update.  Someday.
 
 ## Overview ##
 
