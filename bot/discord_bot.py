@@ -90,16 +90,11 @@ class BotClient(discord.Client):
         
         #log inputs - SHP 10FEB24
         """
-        
-        
+                
         #handle user ID and name here -SHP 10FEB24
         #user_id = message.author.id
         #user_name = message.author.name
-        
-        
-        
-        
-        
+                
         # Do not reply to self
         if message.author.id == self.user.id:
             return
@@ -117,8 +112,11 @@ class BotClient(discord.Client):
             if fcom_api_token is None:
                 msg = "You're already registered! To reset your registration, type `remove` before typing `register` again."
             else:
+                
+
                 msg = f"Here's your Discord code: ```{fcom_api_token}```" + \
-                      "\nPlease enter it into the client within the next 5 minutes.\n"
+                      "\nPlease enter it into the client within the next 5 minutes.\n" + \
+                      "***IMPORANT***: You must get a confirmation message in Discord after you start forwarding to confirm that the bot is working!"
                 logger.info(
                     #f'Generate token:\t{fcom_api_token}, {message.channel.recipient.id} '
                     #f'({message.channel.recipient.name} #{message.channel.recipient.discriminator}) ')
@@ -152,6 +150,7 @@ class BotClient(discord.Client):
                 msg = "Successfully deregistered! You'll no longer receive forwarded messages."
                 logger.info(f'Deregister user:\t{message.author.id} '
                             f'({message.author.name} #0)')
+                
             else:
                 msg = "Could not unregister. Are you sure you're registered?"
 
@@ -180,7 +179,7 @@ class BotClient(discord.Client):
         # while not bot.is_closed():
         
         # !!! SHP 18APR24 Debug Code
-        logger.info("     DEBUG: firing forward_messages")
+        logger.debug("     DEBUG: firing forward_messages")
         i = 0
                 
         messages = db_manager.get_messages()
@@ -191,37 +190,37 @@ class BotClient(discord.Client):
         if messages is not None:
         
             # !!! SHP 25APR24 Debug Code
-            logger.info("     DEBUG: messages is not None is true")
+            logger.debug("     DEBUG: messages is not None is true")
         
             for msg in messages:
 
                 # !!! SHP 25APR24 Debug Code
                 i=i+1
-                logger.info(f'     DEBUG: message number i = {i}')
-                logger.info(f'       DEBUG: msg.token={msg.token}')
+                logger.debug(f'     DEBUG: message number i = {i}')
+                logger.debug(f'       DEBUG: msg.token={msg.token}')
 
                 dm_user = await db_manager.get_user_record(msg.token, self)
                 
                 #!!! SHP 25APR24 Debug Code
                 if isinstance(dm_user, UserRegistration):
                         # !!! SHP 25APR24 Debug Code
-                        logger.info("     DEBUG: dm_user is class discord.user")
+                        logger.debug("     DEBUG: dm_user is class discord.user")
                 else:
                         # !!! SHP 25APR24 Debug Code
-                        logger.info("     DEBUG: dm_user is NOT class discord.user")
+                        logger.debug("     DEBUG: dm_user is NOT class discord.user")
                         
                     
                 
                 if dm_user is not None:
                 
                     # !!! SHP 25APR24 Debug Code
-                    logger.info("        DEBUG: messages dm_user is not None is true")
+                    logger.debug("        DEBUG: messages dm_user is not None is true")
             
                     # if it's a frequency message (i.e. @xxyyy), parse it into a user-friendly format
                     if msg.receiver.startswith('@'):
                         
                         # !!! SHP 25APR24 Debug Code
-                        logger.info("           DEBUG: treating as frequency message")
+                        logger.debug("           DEBUG: treating as frequency message")
                         
                         freq = msg.receiver.replace('@', '1')[:3] + '.' + msg.receiver[3:]
                         dm_contents = f'**{msg.sender}** ({freq} MHz):\n{msg.message}'
@@ -229,7 +228,7 @@ class BotClient(discord.Client):
                     else:
                         
                         # !!! SHP 25APR24 Debug Code
-                        logger.info("          DEBUG: treating as private message")
+                        logger.debug("          DEBUG: treating as private message")
                     
                         dm_contents = f'**{msg.sender}**:\n{msg.message}'
 
@@ -257,7 +256,7 @@ class BotClient(discord.Client):
                     try:
                         await dm_channel.send(dm_contents)
                     except discordpy_error.Forbidden:
-                        logger.info(f'[HTTP 403] Could not send DM to {dm_user.discord_name} ({dm_user.discord_id})')
+                        logger.warning(f'[HTTP 403] Could not send DM to {dm_user.discord_name} ({dm_user.discord_id})')
                     except discordpy_error.HTTPException as e:
                         logger.error(f'{traceback.format_exc()}')
 
@@ -278,6 +277,7 @@ class BotClient(discord.Client):
         or confirmed and older than 24 hours.
 
         """
+        #TODO - remove stale stat entries too!
         db_manager.remove_stale_users()
         await asyncio.sleep(60*5)
 

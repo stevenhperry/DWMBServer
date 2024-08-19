@@ -140,8 +140,8 @@ async def get_user_record(param, client: Client = None) -> UserRegistration:
     :return:        UserRegistration object if in DB, None otherwise
     """
     
-    logger.info("     DEBUG: firing get_user_record")
-    logger.info("       DEBUG: length of pm_channels is %i", len(pm_channels))
+    logger.info("     INFO: firing get_user_record")
+    logger.info("       INFO: length of pm_channels is %i", len(pm_channels))
     
     if not (isinstance(param, int) or isinstance(param, str)):
         return None
@@ -227,9 +227,14 @@ def remove_discord_user(search_param: int) -> bool:
             cmd = "DELETE FROM registration WHERE discord_id=%s"
             discord_id = search_param
 
+            #if given Discord ID, retrieve token so we can end the stat entry
+            token = get_user_registration(discord_id).token
+
+
         # Discord code/token provided
         elif isinstance(search_param, str):
             cmd = "DELETE FROM registration WHERE token=%s"
+            token = search_param
 
             # If given token, retrieve Discord ID so we can delete cache entry
             discord_id = get_user_registration(search_param).discord_id
@@ -237,19 +242,26 @@ def remove_discord_user(search_param: int) -> bool:
         # Neither provided
         else:
             return False
-
+       
         # Delete from cache, if present
         try:
             del pm_channels[discord_id]
         except KeyError:
             pass
-
+        
         conn = mariadb.connect(host=DB_URI, user=DB_USERNAME, password=DB_PASSWORD, database=DB_NAME)
         db = conn.cursor()
-        db.execute(cmd, (search_param,))
+        db.execute(cmd, (search_param,))       
 
         conn.commit()
         conn.close()
+
+        if end_stat_entry(token) is True:
+            #do a dance!
+            logger.info(f'Successfully end_stat_entry from db_manager.py remove_discord_user routine')
+        else:
+            #error trap
+            logger.warning(f'Failed to end_stat_entry from db_manager.py remove_discord_user routine')
 
         return True
 
@@ -407,10 +419,12 @@ def user_exists(search_param: int) -> bool:
         return True
 
 
-def get_user_record_tuple(param) -> ():
+def get_user_record_tuple(param) -> tuple[str, str, int, str, bool, str]:
     """
     Internal method for retrieving the user registration record from the DB.
     :return:
+
+    See Class UserRegistration for data types
     """
     conn = mariadb.connect(host=DB_URI, user=DB_USERNAME, password=DB_PASSWORD, database=DB_NAME)
 
@@ -445,15 +459,15 @@ async def get_channel(client: Client, discord_id: int) -> DMChannel:
     """
     
     logger.info("INFO: start of the debugging chain in get_channel")
-    logger.debug("DEBUG: running get_channel")
+    logger.info("INFO: running get_channel")
     
     try:
         #rewrite for debug purpose, temporary pull from pm_channels and spit out before proceeding - SHP 03MAY24
         ch = pm_channels[discord_id]
-        logger.debug(f'-DEBUG: returning from pm_channels')
-        logger.debug(f'--DEBUG: discord_id = %i', discord_id)
-        logger.debug(f'--DEBUG: ch = %s', ch)
-        logger.debug(f'---DEBUG: total contents of pm_channels %s',pm_channels)
+        logger.info(f'-INFO: returning from pm_channels')
+        logger.info(f'--INFO: discord_id = %i', discord_id)
+        logger.info(f'--INFO: ch = %s', ch)
+        logger.info(f'---INFO: total contents of pm_channels %s',pm_channels)
         
         #Added way to capture a "null" response and force to go to KeyError - SHP 03MAY24
         
@@ -463,7 +477,7 @@ async def get_channel(client: Client, discord_id: int) -> DMChannel:
         #channel = pm_channels[discord_id]
         channel = ch
                 
-        logger.debug("-DEBUG: returning from pm_channels")
+        logger.info("-INFO: returning from pm_channels")
         
     except KeyError:
     
@@ -487,9 +501,9 @@ async def get_channel(client: Client, discord_id: int) -> DMChannel:
 
 
         #
-        logger.debug(f'--DEBUG fcom_discord_server = %s',fcom_discord_server)
-        logger.debug(f'--DEBUG user = %s',user)
-        logger.debug(f'--DEBUG ch = %s',ch)
+        logger.info(f'--INFO fcom_discord_server = %s',fcom_discord_server)
+        logger.info(f'--INFO user = %s',user)
+        logger.info(f'--INFO ch = %s',ch)
 
         if ch is None:
             ch = await user.create_dm()
@@ -501,3 +515,85 @@ async def get_channel(client: Client, discord_id: int) -> DMChannel:
         channel = ch
 
     return channel
+
+
+def init_stat_entry(token: str) -> bool:
+    """
+    Starts an entry into the stat table for tracking purposes.
+
+    :param token:       Token - the token associated with the session.
+
+    """
+
+    logger.info("INFO - Starting init_stat_entry")
+
+    conn = mariadb.connect(host=DB_URI, user=DB_USERNAME, password=DB_PASSWORD, database=DB_NAME)
+
+    db = conn.cursor()
+
+    # First, check if the token is already in the stats
+    cmd = "SELECT COUNT(*) FROM stats WHERE token = %s LIMIT 1;"
+    db.execute(cmd, (token,))
+    usercount = db.fetchone()[0]
+
+    if usercount != 0:
+        #if token already exists in the table, then don't do anything.
+        logger.debug("-DEBUG - init_stat_entry usercount != 0")
+        logger.debug("--DEBUG usercount = %i",(usercount))
+
+        conn.close()
+        return False
+    else:
+       #if token is not already in the table, then start a new entry.
+        logger.debug("-DEBUG - init_stat_entry usercount != 0")
+        cmd = "INSERT INTO stats(token) VALUES (%s)"
+            #by default, the tsRegistered will be the current timestamp, so only need to write the token
+        db.execute(cmd, (token,))
+        conn.commit()
+        conn.close()
+
+        return True
+
+def end_stat_entry(token: str) -> bool:
+    """
+    For the given token, closes the stat entry by entering a tsDeregistered
+
+    :param token:       Token - the token associated with the session.
+
+    """
+    conn = mariadb.connect(host=DB_URI, user=DB_USERNAME, password=DB_PASSWORD, database=DB_NAME)
+
+    db = conn.cursor()
+
+    # First, check if the token is already in the stats
+    cmd = "SELECT COUNT(*) FROM stats WHERE token = %s LIMIT 1;"
+    db.execute(cmd, (token,))
+    usercount = db.fetchone()[0]
+    logger.info("INFO - cmd = " + cmd)
+
+    if usercount != 1:
+        #if not a 1:1 match, then don't do anything.
+        logger.debug("-DEBUG - end_stat_entry usercount ***NOT*** a 1:1 match")
+        logger.debug("--DEBUG usercount = %i",(usercount))
+
+        conn.close()
+        return False
+    else:
+        #if it is a 1:1 match, then deregister with current timestamp
+        logger.debug("-DEBUG: - end_stat_entry usercount is 1:1 match")
+        cmd = "UPDATE stats SET tsDeregistered = CURRENT_TIMESTAMP WHERE token = %s LIMIT 1;"
+        
+        db.execute(cmd, (token,))
+        conn.commit()
+        conn.close()
+
+        return True
+
+def prune_stat_entry() -> bool:
+    """
+    Closes out any stat entries which are over 2 days old
+
+    TODO - qry to close out any stat entries where
+        tsRegistered older than 2 days - AND - 
+        tsDeregistered null
+    """

@@ -2,8 +2,6 @@ from discord import User, DMChannel, Client, Message #added message SHP 10FEB24
 from dbmanager import db_manager
 from dbmodels import user_registration
 
-
-
 #redefine to use user ID from the message.author - SHP 10FEB24
 
 #def register_user(user_channel: DMChannel) -> str:
@@ -18,15 +16,12 @@ def register_user(user: User) -> str:
     :return:                The token associated with the Discord user.
     """
     #user = user_channel.recipient #doesn't work anymore - SHP 10FEB24
-    #debug
-    #print(user_message)
-    #print(user)
-    #debug
     
     #user = user_message.author.id #SHP 10FEB24
     user_channel = "null" #SHP 10FEB24
     #token = db_manager.add_discord_user(user.id, f'{user.name} #{user.discriminator}', user_channel) #remove discriminator, replace with 0
     token = db_manager.add_discord_user(user.id, f'{user.name} #0', user_channel) #remove discriminator, replace with 0
+    
     return token
 
 

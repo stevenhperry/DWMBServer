@@ -84,7 +84,21 @@ def register_user():
         if requested_user is None:
             return jsonify(status=400, detail="Provided token is not registered to any Discord user"), 400
         else:
-            db_manager.confirm_discord_user(token, callsign.upper())
+            if db_manager.confirm_discord_user(token, callsign.upper()) is True:
+                #do a dance!
+                logger.info("Successful confirm_discord_user")
+                
+            else:
+                #error trap
+                logger.error("ERROR - Failed to confirm_discord_user")
+
+
+            if db_manager.init_stat_entry(token) is True:
+                #do a dance!
+                logger.info(f'Successfully init_stat_entry from message_api.py register routine')
+            else:
+                #error trap
+                logger.warning(f'Failed to init_stat_entry from message.py register routine')
 
             expiry_time = requested_user.last_updated + timedelta(1.5)
             expiry_time_string = f"{str(expiry_time)[:16]}"
@@ -220,12 +234,21 @@ def deregister(token: str):
 
     discord_user = db_manager.get_user_registration(token)
     if discord_user is None:
-        logger.info(f'Deregister request: [Not found] {token}')
+        logger.error(f'Deregister request: [Not found] {token}')
         return error_msg
     else:
         logger.info(f'Deregister token {token}')
 
         if db_manager.remove_discord_user(token):
+
+            if db_manager.end_stat_entry(token) is True:
+                #do a dance!
+                logger.info(f'Successfully end_stat_entry from message_api.py deregister routine')
+            else:
+                #error trap
+                logger.warning(f'Failed to end_stat_entry from message_api.py deregister routine')
+
             return 'ok'
+            # This seems sloppy.  Potentially leaves stat entries going forever?  Need to include them in an auto expiry routine?
         else:
             return error_msg
